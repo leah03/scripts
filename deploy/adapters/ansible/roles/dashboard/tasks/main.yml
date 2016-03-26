@@ -1,0 +1,71 @@
+##############################################################################
+# Copyright (c) 2016 HUAWEI TECHNOLOGIES CO.,LTD and others.
+#
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+---
+- include_vars: "{{ ansible_os_family }}.yml"
+
+- name: install http packages
+  action: "{{ ansible_pkg_mgr }} name={{ item }} state=present"
+  with_items: http_packages
+
+- name: set http config
+  lineinfile: dest={{ http_config_file }} regexp='^Listen' line='Listen {{ internal_ip }}:80'
+
+- name: restart http services
+  service: name={{ http_service }} state=restarted enabled=yes
+
+- name: write services to monitor list
+  lineinfile: dest=/opt/service create=yes line='{{ http_service }}'
+
+- name: install dashboard packages
+  action: "{{ ansible_pkg_mgr }} name={{ item }} state=present"
+  with_items: packages | union(packages_noarch)
+
+- name: remove ubuntu theme
+  action: "{{ ansible_pkg_mgr }} name=openstack-dashboard-ubuntu-theme state=absent"
+
+- name: update ubuntu horizon settings
+  lineinfile:
+    dest: /etc/openstack-dashboard/local_settings.py
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  with_items:
+    - regexp: '^WEBROOT[ \t]*=.*'
+      line: 'WEBROOT = "/horizon"'
+    - regexp: '^COMPRESS_OFFLINE[ \t]*=.*'
+      line: 'COMPRESS_OFFLINE=True'
+    - regexp: '^ALLOWED_HOSTS[ \t]*=.*'
+      line: 'ALLOWED_HOSTS = ["*"]'
+    - regexp: '^OPENSTACK_HOST[ \t]*=.*'
+      line: 'OPENSTACK_HOST = "{{ internal_ip }}"'
+  when: ansible_os_family == 'Debian'
+
+- name: precompile horizon css
+  shell: /usr/bin/python /usr/share/openstack-dashboard/manage.py compress --force
+  ignore_errors: True
+  when: ansible_os_family == 'Debian'
+
+- name: update redhat version horizon settings
+  lineinfile:
+    dest: /etc/openstack-dashboard/local_settings
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  with_items:
+    - regexp: '^WEBROOT[ \t]*=.*'
+      line: 'WEBROOT = "/horizon"'
+    - regexp: '^COMPRESS_OFFLINE[ \t]*=.*'
+      line: 'COMPRESS_OFFLINE=False'
+    - regexp: '^ALLOWED_HOSTS[ \t]*=.*'
+      line: 'ALLOWED_HOSTS = ["*"]'
+    - regexp: '^OPENSTACK_HOST[ \t]*=.*'
+      line: 'OPENSTACK_HOST = "{{ internal_ip }}"'
+  when: ansible_os_family == 'RedHat'
+
+- name: restart dashboard services
+  service: name={{ item }} state=restarted enabled=yes
+  with_items: services | union(services_noarch)

@@ -1,0 +1,42 @@
+#!/bin/bash
+set -x
+
+# add openstack kilo repo
+yum install http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm -y
+yum install http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-5.noarch.rpm -y
+
+cat << EOF >/etc/yum.repos.d/elasticsearch.repo
+[elasticsearch-2.x]
+name=Elasticsearch repository for 2.x packages
+baseurl=http://packages.elastic.co/elasticsearch/2.x/centos
+gpgcheck=1
+gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+EOF
+
+cat << EOF >/etc/yum.repos.d/logstash.repo
+[logstash-2.0]
+name=Logstash repository for 2.0.x packages
+baseurl=http://packages.elastic.co/logstash/2.0/centos
+gpgcheck=1
+gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+EOF
+
+yum update -y
+
+mkdir -p /centos7-compass-core
+yum -y reinstall bind-license --downloadonly --downloaddir=/centos7-compass-core
+yum -y reinstall openssl-libs --downloadonly --downloaddir=/centos7-compass-core
+
+#download packages
+#set packages = $getVar('default_packages', [])
+yum -y install --skip-broken --downloadonly --downloaddir=/centos7-compass-core #echo ' '.join(packages)
+#set packages = $getVar('packages', [])
+yum -y install --skip-broken --downloadonly --downloaddir=/centos7-compass-core #echo ' '.join(packages)
+#make repo
+
+find /var/cache/yum/ -name "*.rpm" | xargs -i cp {} /centos7-compass-core
+
+yum install tar -y
+tar -zcvf /centos7-compass-core.tar.gz /centos7-compass-core
